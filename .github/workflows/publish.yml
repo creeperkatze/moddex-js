@@ -1,0 +1,53 @@
+name: Publish
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+    test:
+        uses: ./.github/workflows/test.yml
+        permissions:
+            contents: read
+        with:
+            ref: ${{ github.ref }}
+
+    publish:
+        needs: test
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - run: pnpm install --frozen-lockfile
+
+            - run: pnpm build
+
+            - run: pnpm publish --no-git-checks
+
+    release:
+        name: GitHub Release
+        needs: test
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+              with:
+                  draft: true
+                  generate_release_notes: true
+                  token: ${{ secrets.GH_PAT }}

@@ -1,0 +1,1923 @@
+openapi: 3.1.0
+info:
+  title: 'ModDex API Documentation'
+  description: 'The ModDex API provides programmatic access to Minecraft mod and modpack reviews, project metadata, and community data.'
+  version: 1.0.0
+servers:
+  - url: 'https://moddex.gg'
+tags:
+  - name: User
+    description: "\nEndpoints for the authenticated API token holder."
+  - name: Projects
+    description: "\nEndpoints for browsing and viewing Minecraft mods and modpacks."
+  - name: Reviews
+    description: "\nEndpoints for browsing community reviews."
+  - name: Tags
+    description: "\nEndpoints for browsing project taxonomy tags (genres, features, themes, mod loaders, Minecraft versions)."
+components:
+  securitySchemes:
+    default:
+      type: http
+      scheme: bearer
+      description: 'You can create a token from your ModDex <b>Settings → API Tokens</b> page. Tokens are read-only, expire after 90 days, and can be revoked at any time. Successful responses include an <code>X-ModDex-Token-Expires</code> header. See the Token lifecycle section in the docs for error codes.'
+security:
+  -
+    default: []
+paths:
+  /api/user:
+    get:
+      summary: 'Show the authenticated user.'
+      operationId: showTheAuthenticatedUser
+      description: 'Returns the profile for the user associated with the current Sanctum token, including reputation rank, social links, and privacy settings for library, follows, and user-directory visibility.'
+      parameters: []
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        examples:
+                          - 1
+                      name:
+                        type: string
+                        examples:
+                          - Steve
+                      username:
+                        type: string
+                        examples:
+                          - steve
+                      email:
+                        type: string
+                        examples:
+                          - steve@example.com
+                      email_verified_at:
+                        type: string
+                        examples:
+                          - '2026-01-15T12:00:00+00:00'
+                      bio:
+                        type: string
+                        examples:
+                          - 'Minecraft mod enthusiast.'
+                      avatar_url:
+                        type: string
+                        examples:
+                          - 'https://moddex.gg/storage/avatars/1.png'
+                      rank:
+                        type: string
+                        examples:
+                          - contributor
+                      social_links:
+                        type: object
+                        properties:
+                          curseforge:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          modrinth:
+                            type: string
+                            examples:
+                              - 'https://modrinth.com/user/steve'
+                          github:
+                            type: string
+                            examples:
+                              - 'https://github.com/steve'
+                          discord_username:
+                            type: string
+                            examples:
+                              - 'steve#0001'
+                          discord_server:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          reddit:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          x:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          bluesky:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                      library_is_public:
+                        type: boolean
+                        examples:
+                          - true
+                      follows_is_public:
+                        type: boolean
+                        examples:
+                          - false
+                      user_directory_is_public:
+                        type: boolean
+                        examples:
+                          - true
+                      two_factor_enabled:
+                        type: boolean
+                        examples:
+                          - false
+                      created_at:
+                        type: string
+                        examples:
+                          - '2025-06-01T00:00:00+00:00'
+                examples:
+                  -
+                    data:
+                      id: 1
+                      name: Steve
+                      username: steve
+                      email: steve@example.com
+                      email_verified_at: '2026-01-15T12:00:00+00:00'
+                      bio: 'Minecraft mod enthusiast.'
+                      avatar_url: 'https://moddex.gg/storage/avatars/1.png'
+                      rank: contributor
+                      social_links:
+                        curseforge: null
+                        modrinth: 'https://modrinth.com/user/steve'
+                        github: 'https://github.com/steve'
+                        discord_username: 'steve#0001'
+                        discord_server: null
+                        reddit: null
+                        x: null
+                        bluesky: null
+                      library_is_public: true
+                      follows_is_public: false
+                      user_directory_is_public: true
+                      two_factor_enabled: false
+                      created_at: '2025-06-01T00:00:00+00:00'
+        401:
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Unauthenticated.
+                examples:
+                  -
+                    message: Unauthenticated.
+        403:
+          description: ''
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  -
+                    description: 'Missing read ability'
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        examples:
+                          - 'Invalid ability provided.'
+                    examples:
+                      -
+                        message: 'Invalid ability provided.'
+                  -
+                    description: 'Unverified email'
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        examples:
+                          - 'Your email address is not verified.'
+                    examples:
+                      -
+                        message: 'Your email address is not verified.'
+      tags:
+        - User
+  /api/v1/projects:
+    get:
+      summary: 'List projects.'
+      operationId: listProjects
+      description: "Returns a paginated list of active Minecraft mods and modpacks with community ratings, download counts, taxonomy tags, and supported Minecraft versions. Use `type` to filter mods vs modpacks, `sort` to rank by rating or popularity, and `featured` to surface editor picks.\n\n`bayesian_rating` adjusts for review count. Projects with few reviews are pulled toward the site-wide average, preventing a single 5-star review from outranking a project with hundreds of reviews."
+      parameters:
+        -
+          in: query
+          name: type
+          description: 'Filter by project type (`mod` or `modpack`).'
+          required: false
+          schema:
+            type: string
+            description: 'Filter by project type (`mod` or `modpack`).'
+            examples:
+              - mod
+        -
+          in: query
+          name: sort
+          description: 'Sort field (`name`, `average_rating`, `bayesian_rating`, `total_ratings`, `total_reviews`, `downloads_count`, `last_updated_at`). `total_ratings` and `total_reviews` both rank by total ratings (quick ratings plus written reviews). Default: `name`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort field (`name`, `average_rating`, `bayesian_rating`, `total_ratings`, `total_reviews`, `downloads_count`, `last_updated_at`). `total_ratings` and `total_reviews` both rank by total ratings (quick ratings plus written reviews). Default: `name`.'
+            examples:
+              - average_rating
+        -
+          in: query
+          name: direction
+          description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+            examples:
+              - desc
+        -
+          in: query
+          name: featured
+          description: 'Return only featured projects.'
+          required: false
+          schema:
+            type: boolean
+            description: 'Return only featured projects.'
+            examples:
+              - true
+        -
+          in: query
+          name: per_page
+          description: 'Results per page (max 50). Default: 15.'
+          required: false
+          schema:
+            type: integer
+            description: 'Results per page (max 50). Default: 15.'
+            examples:
+              - 15
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          examples:
+                            - 1
+                        name:
+                          type: string
+                          examples:
+                            - Create
+                        slug:
+                          type: string
+                          examples:
+                            - create
+                        summary:
+                          type: string
+                          examples:
+                            - 'Aesthetic Technology that empowers the Player'
+                        type:
+                          type: string
+                          examples:
+                            - mod
+                        logo_url:
+                          type: string
+                          examples:
+                            - 'https://...'
+                        average_rating:
+                          type: number
+                          examples:
+                            - 4.5
+                        bayesian_rating:
+                          type: number
+                          examples:
+                            - 4.2
+                        total_ratings:
+                          type: integer
+                          examples:
+                            - 12
+                        total_reviews:
+                          type: integer
+                          examples:
+                            - 8
+                        written_reviews_count:
+                          type: integer
+                          examples:
+                            - 8
+                        downloads_count:
+                          type: integer
+                          examples:
+                            - 500000
+                        minecraft_versions:
+                          type: array
+                          items:
+                            type: string
+                          examples:
+                            -
+                              - 1.20.1
+                              - 1.21.1
+                        mod_loaders:
+                          type: array
+                          items:
+                            type: string
+                          examples:
+                            -
+                              - Forge
+                              - NeoForge
+                        genres:
+                          type: array
+                          items:
+                            type: string
+                          examples:
+                            -
+                              - Tech
+                        last_updated_at:
+                          type: string
+                          examples:
+                            - '2026-03-15T00:00:00+00:00'
+                    examples:
+                      -
+                        -
+                          id: 1
+                          name: Create
+                          slug: create
+                          summary: 'Aesthetic Technology that empowers the Player'
+                          type: mod
+                          logo_url: 'https://...'
+                          average_rating: 4.5
+                          bayesian_rating: 4.2
+                          total_ratings: 12
+                          total_reviews: 8
+                          written_reviews_count: 8
+                          downloads_count: 500000
+                          minecraft_versions:
+                            - 1.20.1
+                            - 1.21.1
+                          mod_loaders:
+                            - Forge
+                            - NeoForge
+                          genres:
+                            - Tech
+                          last_updated_at: '2026-03-15T00:00:00+00:00'
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                        examples:
+                          - ...
+                      last:
+                        type: string
+                        examples:
+                          - ...
+                      prev:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      next:
+                        type: string
+                        examples:
+                          - ...
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        examples:
+                          - 1
+                      last_page:
+                        type: integer
+                        examples:
+                          - 5
+                      per_page:
+                        type: integer
+                        examples:
+                          - 15
+                      total:
+                        type: integer
+                        examples:
+                          - 72
+                examples:
+                  -
+                    data:
+                      -
+                        id: 1
+                        name: Create
+                        slug: create
+                        summary: 'Aesthetic Technology that empowers the Player'
+                        type: mod
+                        logo_url: 'https://...'
+                        average_rating: 4.5
+                        bayesian_rating: 4.2
+                        total_ratings: 12
+                        total_reviews: 8
+                        written_reviews_count: 8
+                        downloads_count: 500000
+                        minecraft_versions:
+                          - 1.20.1
+                          - 1.21.1
+                        mod_loaders:
+                          - Forge
+                          - NeoForge
+                        genres:
+                          - Tech
+                        last_updated_at: '2026-03-15T00:00:00+00:00'
+                    links:
+                      first: ...
+                      last: ...
+                      prev: null
+                      next: ...
+                    meta:
+                      current_page: 1
+                      last_page: 5
+                      per_page: 15
+                      total: 72
+      tags:
+        - Projects
+  '/api/v1/mods/{project_slug}':
+    get:
+      summary: 'Show a mod.'
+      operationId: showAMod
+      description: 'Returns full details for a single mod, including category ratings (gameplay, performance, aesthetics), platform-specific data from CurseForge and Modrinth (descriptions, authors, screenshots, download counts), taxonomy tags (genres, features, themes), and external links.'
+      parameters: []
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        examples:
+                          - 1
+                      name:
+                        type: string
+                        examples:
+                          - Create
+                      slug:
+                        type: string
+                        examples:
+                          - create
+                      summary:
+                        type: string
+                        examples:
+                          - 'Aesthetic Technology that empowers the Player'
+                      type:
+                        type: string
+                        examples:
+                          - mod
+                      logo_url:
+                        type: string
+                        examples:
+                          - 'https://...'
+                      license:
+                        type: string
+                        examples:
+                          - 'Create Mod License'
+                      average_rating:
+                        type: number
+                        examples:
+                          - 4.5
+                      gameplay_rating:
+                        type: number
+                        examples:
+                          - 4.0
+                      performance_rating:
+                        type: number
+                        examples:
+                          - 4.5
+                      aesthetics_rating:
+                        type: number
+                        examples:
+                          - 5.0
+                      total_ratings:
+                        type: integer
+                        examples:
+                          - 12
+                      total_reviews:
+                        type: integer
+                        examples:
+                          - 8
+                      written_reviews_count:
+                        type: integer
+                        examples:
+                          - 8
+                      downloads_count:
+                        type: integer
+                        examples:
+                          - 500000
+                      minecraft_versions:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - 1.20.1
+                            - 1.21.1
+                      mod_loaders:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Forge
+                            - NeoForge
+                      genres:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Tech
+                      features:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - 'Automation & Processing'
+                            - 'Building Improvements'
+                            - 'Redstone Improvements'
+                      themes:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Industrial
+                            - Steampunk/Dieselpunk
+                      platform_urls:
+                        type: object
+                        properties:
+                          curseforge:
+                            type: string
+                            examples:
+                              - 'https://...'
+                          modrinth:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          source:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          issues:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          wiki:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          discord:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                      curseforge:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            examples:
+                              - 328085
+                          description:
+                            type: string
+                            examples:
+                              - '<p>Full HTML description...</p>'
+                          authors:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  examples:
+                                    - simibubi
+                                url:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  examples:
+                                    - null
+                            examples:
+                              -
+                                - name: simibubi
+                                  url: null
+                          screenshots:
+                            type: array
+                            examples:
+                              - []
+                          downloads_count:
+                            type: integer
+                            examples:
+                              - 500000
+                          updated_at:
+                            type: string
+                            examples:
+                              - '2026-03-15T00:00:00+00:00'
+                          created_at:
+                            type: string
+                            examples:
+                              - '2023-01-01T00:00:00+00:00'
+                          delisted_at:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                      modrinth:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      last_updated_at:
+                        type: string
+                        examples:
+                          - '2026-03-15T00:00:00+00:00'
+                      curseforge_created_at:
+                        type: string
+                        examples:
+                          - '2023-01-01T00:00:00+00:00'
+                examples:
+                  -
+                    data:
+                      id: 1
+                      name: Create
+                      slug: create
+                      summary: 'Aesthetic Technology that empowers the Player'
+                      type: mod
+                      logo_url: 'https://...'
+                      license: 'Create Mod License'
+                      average_rating: 4.5
+                      gameplay_rating: 4.0
+                      performance_rating: 4.5
+                      aesthetics_rating: 5.0
+                      total_ratings: 12
+                      total_reviews: 8
+                      written_reviews_count: 8
+                      downloads_count: 500000
+                      minecraft_versions:
+                        - 1.20.1
+                        - 1.21.1
+                      mod_loaders:
+                        - Forge
+                        - NeoForge
+                      genres:
+                        - Tech
+                      features:
+                        - 'Automation & Processing'
+                        - 'Building Improvements'
+                        - 'Redstone Improvements'
+                      themes:
+                        - Industrial
+                        - Steampunk/Dieselpunk
+                      platform_urls:
+                        curseforge: 'https://...'
+                        modrinth: null
+                        source: null
+                        issues: null
+                        wiki: null
+                        discord: null
+                      curseforge:
+                        id: 328085
+                        description: '<p>Full HTML description...</p>'
+                        authors:
+                          -
+                            name: simibubi
+                            url: null
+                        screenshots: []
+                        downloads_count: 500000
+                        updated_at: '2026-03-15T00:00:00+00:00'
+                        created_at: '2023-01-01T00:00:00+00:00'
+                        delisted_at: null
+                      modrinth: null
+                      last_updated_at: '2026-03-15T00:00:00+00:00'
+                      curseforge_created_at: '2023-01-01T00:00:00+00:00'
+        404:
+          description: 'Not Found'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - 'Not Found'
+                examples:
+                  -
+                    message: 'Not Found'
+      tags:
+        - Projects
+    parameters:
+      -
+        in: path
+        name: project_slug
+        description: 'The mod slug.'
+        required: true
+        schema:
+          type: string
+          examples:
+            - create
+  '/api/v1/mods/{project_slug}/reviews':
+    get:
+      summary: 'List mod reviews.'
+      operationId: listModReviews
+      description: "Returns paginated written reviews for a mod. Only approved, published reviews with written content are included. Quick ratings (star-only, no text) and pending/rejected reviews are excluded. Each review includes category ratings, the author's Minecraft version and playtime context, and community vote counts."
+      parameters:
+        -
+          in: query
+          name: sort
+          description: 'Sort field (`created_at`, `rating`, `helpful_votes`, `unhelpful_votes`). Default: `created_at`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort field (`created_at`, `rating`, `helpful_votes`, `unhelpful_votes`). Default: `created_at`.'
+            examples:
+              - created_at
+        -
+          in: query
+          name: direction
+          description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+            examples:
+              - desc
+        -
+          in: query
+          name: per_page
+          description: 'Results per page (max 50). Default: 15.'
+          required: false
+          schema:
+            type: integer
+            description: 'Results per page (max 50). Default: 15.'
+            examples:
+              - 15
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          examples:
+                            - 1
+                        is_quick_rating:
+                          type: boolean
+                          examples:
+                            - false
+                        title:
+                          type: string
+                          examples:
+                            - 'Amazing mod!'
+                        content:
+                          type: string
+                          examples:
+                            - 'This mod completely changed how I play Minecraft...'
+                        rating:
+                          type: number
+                          examples:
+                            - 4.5
+                        gameplay_rating:
+                          type: number
+                          examples:
+                            - 4.0
+                        performance_rating:
+                          type: number
+                          examples:
+                            - 4.5
+                        aesthetics_rating:
+                          type: number
+                          examples:
+                            - 5.0
+                        minecraft_version:
+                          type: string
+                          examples:
+                            - 1.20.1
+                        playtime_hours:
+                          type: integer
+                          examples:
+                            - 500
+                        play_status:
+                          type: string
+                          examples:
+                            - completed
+                        pack_version:
+                          type:
+                            - string
+                            - 'null'
+                          examples:
+                            - null
+                        helpful_votes:
+                          type: integer
+                          examples:
+                            - 5
+                        unhelpful_votes:
+                          type: integer
+                          examples:
+                            - 0
+                        is_verified_developer:
+                          type: boolean
+                          examples:
+                            - false
+                        author:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              examples:
+                                - 1
+                            name:
+                              type: string
+                              examples:
+                                - Steve
+                        project:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              examples:
+                                - 1
+                            name:
+                              type: string
+                              examples:
+                                - Create
+                            slug:
+                              type: string
+                              examples:
+                                - create
+                            type:
+                              type: string
+                              examples:
+                                - mod
+                        created_at:
+                          type: string
+                          examples:
+                            - '2026-03-01T00:00:00+00:00'
+                        edited_at:
+                          type:
+                            - string
+                            - 'null'
+                          examples:
+                            - null
+                        public_moderator_note:
+                          type:
+                            - string
+                            - 'null'
+                          examples:
+                            - null
+                    examples:
+                      -
+                        -
+                          id: 1
+                          is_quick_rating: false
+                          title: 'Amazing mod!'
+                          content: 'This mod completely changed how I play Minecraft...'
+                          rating: 4.5
+                          gameplay_rating: 4
+                          performance_rating: 4.5
+                          aesthetics_rating: 5
+                          minecraft_version: 1.20.1
+                          playtime_hours: 500
+                          play_status: completed
+                          pack_version: null
+                          helpful_votes: 5
+                          unhelpful_votes: 0
+                          is_verified_developer: false
+                          author:
+                            id: 1
+                            name: Steve
+                          project:
+                            id: 1
+                            name: Create
+                            slug: create
+                            type: mod
+                          created_at: '2026-03-01T00:00:00+00:00'
+                          edited_at: null
+                          public_moderator_note: null
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                        examples:
+                          - ...
+                      last:
+                        type: string
+                        examples:
+                          - ...
+                      prev:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      next:
+                        type: string
+                        examples:
+                          - ...
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        examples:
+                          - 1
+                      last_page:
+                        type: integer
+                        examples:
+                          - 1
+                      per_page:
+                        type: integer
+                        examples:
+                          - 15
+                      total:
+                        type: integer
+                        examples:
+                          - 3
+                examples:
+                  -
+                    data:
+                      -
+                        id: 1
+                        is_quick_rating: false
+                        title: 'Amazing mod!'
+                        content: 'This mod completely changed how I play Minecraft...'
+                        rating: 4.5
+                        gameplay_rating: 4.0
+                        performance_rating: 4.5
+                        aesthetics_rating: 5.0
+                        minecraft_version: 1.20.1
+                        playtime_hours: 500
+                        play_status: completed
+                        pack_version: null
+                        helpful_votes: 5
+                        unhelpful_votes: 0
+                        is_verified_developer: false
+                        author:
+                          id: 1
+                          name: Steve
+                        project:
+                          id: 1
+                          name: Create
+                          slug: create
+                          type: mod
+                        created_at: '2026-03-01T00:00:00+00:00'
+                        edited_at: null
+                        public_moderator_note: null
+                    links:
+                      first: ...
+                      last: ...
+                      prev: null
+                      next: ...
+                    meta:
+                      current_page: 1
+                      last_page: 1
+                      per_page: 15
+                      total: 3
+      tags:
+        - Projects
+    parameters:
+      -
+        in: path
+        name: project_slug
+        description: 'The mod slug.'
+        required: true
+        schema:
+          type: string
+          examples:
+            - create
+  '/api/v1/modpacks/{project_slug}':
+    get:
+      summary: 'Show a modpack.'
+      operationId: showAModpack
+      description: 'Returns full details for a single modpack, including category ratings (gameplay, performance, aesthetics), platform-specific data from CurseForge and Modrinth (descriptions, authors, screenshots, download counts), taxonomy tags (genres, features, themes), and external links.'
+      parameters: []
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        examples:
+                          - 42
+                      name:
+                        type: string
+                        examples:
+                          - RLCraft
+                      slug:
+                        type: string
+                        examples:
+                          - rlcraft
+                      summary:
+                        type: string
+                        examples:
+                          - 'A hardcore survival modpack.'
+                      type:
+                        type: string
+                        examples:
+                          - modpack
+                      logo_url:
+                        type: string
+                        examples:
+                          - 'https://...'
+                      license:
+                        type: string
+                        examples:
+                          - 'All Rights Reserved'
+                      average_rating:
+                        type: number
+                        examples:
+                          - 4.7
+                      gameplay_rating:
+                        type: number
+                        examples:
+                          - 4.8
+                      performance_rating:
+                        type: number
+                        examples:
+                          - 4.2
+                      aesthetics_rating:
+                        type: number
+                        examples:
+                          - 4.5
+                      total_ratings:
+                        type: integer
+                        examples:
+                          - 230
+                      total_reviews:
+                        type: integer
+                        examples:
+                          - 95
+                      written_reviews_count:
+                        type: integer
+                        examples:
+                          - 95
+                      downloads_count:
+                        type: integer
+                        examples:
+                          - 25000000
+                      minecraft_versions:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - 1.12.2
+                      mod_loaders:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Forge
+                      genres:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Adventure/Exploration
+                            - Survival
+                            - RPG
+                            - Magic
+                      features:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - 'Difficulty: Challenging'
+                            - 'Realism & Immersion'
+                            - Dragons
+                            - 'Combat Focused'
+                      themes:
+                        type: array
+                        items:
+                          type: string
+                        examples:
+                          -
+                            - Fantasy
+                            - Medieval
+                      platform_urls:
+                        type: object
+                        properties:
+                          curseforge:
+                            type: string
+                            examples:
+                              - 'https://...'
+                          modrinth:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          source:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          issues:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          wiki:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                          discord:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                      curseforge:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            examples:
+                              - 285109
+                          description:
+                            type: string
+                            examples:
+                              - '<p>Full HTML description...</p>'
+                          authors:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                name:
+                                  type: string
+                                  examples:
+                                    - Shivaxi
+                                url:
+                                  type:
+                                    - string
+                                    - 'null'
+                                  examples:
+                                    - null
+                            examples:
+                              -
+                                - name: Shivaxi
+                                  url: null
+                          screenshots:
+                            type: array
+                            examples:
+                              - []
+                          downloads_count:
+                            type: integer
+                            examples:
+                              - 25000000
+                          updated_at:
+                            type: string
+                            examples:
+                              - '2026-03-15T00:00:00+00:00'
+                          created_at:
+                            type: string
+                            examples:
+                              - '2019-01-01T00:00:00+00:00'
+                          delisted_at:
+                            type:
+                              - string
+                              - 'null'
+                            examples:
+                              - null
+                      modrinth:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      last_updated_at:
+                        type: string
+                        examples:
+                          - '2026-03-15T00:00:00+00:00'
+                      curseforge_created_at:
+                        type: string
+                        examples:
+                          - '2019-01-01T00:00:00+00:00'
+                examples:
+                  -
+                    data:
+                      id: 42
+                      name: RLCraft
+                      slug: rlcraft
+                      summary: 'A hardcore survival modpack.'
+                      type: modpack
+                      logo_url: 'https://...'
+                      license: 'All Rights Reserved'
+                      average_rating: 4.7
+                      gameplay_rating: 4.8
+                      performance_rating: 4.2
+                      aesthetics_rating: 4.5
+                      total_ratings: 230
+                      total_reviews: 95
+                      written_reviews_count: 95
+                      downloads_count: 25000000
+                      minecraft_versions:
+                        - 1.12.2
+                      mod_loaders:
+                        - Forge
+                      genres:
+                        - Adventure/Exploration
+                        - Survival
+                        - RPG
+                        - Magic
+                      features:
+                        - 'Difficulty: Challenging'
+                        - 'Realism & Immersion'
+                        - Dragons
+                        - 'Combat Focused'
+                      themes:
+                        - Fantasy
+                        - Medieval
+                      platform_urls:
+                        curseforge: 'https://...'
+                        modrinth: null
+                        source: null
+                        issues: null
+                        wiki: null
+                        discord: null
+                      curseforge:
+                        id: 285109
+                        description: '<p>Full HTML description...</p>'
+                        authors:
+                          -
+                            name: Shivaxi
+                            url: null
+                        screenshots: []
+                        downloads_count: 25000000
+                        updated_at: '2026-03-15T00:00:00+00:00'
+                        created_at: '2019-01-01T00:00:00+00:00'
+                        delisted_at: null
+                      modrinth: null
+                      last_updated_at: '2026-03-15T00:00:00+00:00'
+                      curseforge_created_at: '2019-01-01T00:00:00+00:00'
+        404:
+          description: 'Not Found'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - 'Not Found'
+                examples:
+                  -
+                    message: 'Not Found'
+      tags:
+        - Projects
+    parameters:
+      -
+        in: path
+        name: project_slug
+        description: 'The modpack slug.'
+        required: true
+        schema:
+          type: string
+          examples:
+            - rlcraft
+  '/api/v1/modpacks/{project_slug}/reviews':
+    get:
+      summary: 'List modpack reviews.'
+      operationId: listModpackReviews
+      description: "Returns paginated written reviews for a modpack. Only approved, published reviews with written content are included. Quick ratings (star-only, no text) and pending/rejected reviews are excluded. Each review includes category ratings, the author's Minecraft version and playtime context, and community vote counts."
+      parameters:
+        -
+          in: query
+          name: sort
+          description: 'Sort field (`created_at`, `rating`, `helpful_votes`, `unhelpful_votes`). Default: `created_at`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort field (`created_at`, `rating`, `helpful_votes`, `unhelpful_votes`). Default: `created_at`.'
+            examples:
+              - created_at
+        -
+          in: query
+          name: direction
+          description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+          required: false
+          schema:
+            type: string
+            description: 'Sort direction (`asc` or `desc`). Default: `desc`.'
+            examples:
+              - desc
+        -
+          in: query
+          name: per_page
+          description: 'Results per page (max 50). Default: 15.'
+          required: false
+          schema:
+            type: integer
+            description: 'Results per page (max 50). Default: 15.'
+            examples:
+              - 15
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          examples:
+                            - 7
+                        is_quick_rating:
+                          type: boolean
+                          examples:
+                            - false
+                        title:
+                          type: string
+                          examples:
+                            - 'Brutal but rewarding'
+                        content:
+                          type: string
+                          examples:
+                            - "RLCraft is the hardest modpack I've ever played..."
+                        rating:
+                          type: number
+                          examples:
+                            - 4.5
+                        gameplay_rating:
+                          type: number
+                          examples:
+                            - 4.8
+                        performance_rating:
+                          type: number
+                          examples:
+                            - 4.0
+                        aesthetics_rating:
+                          type: number
+                          examples:
+                            - 4.5
+                        minecraft_version:
+                          type: string
+                          examples:
+                            - 1.12.2
+                        playtime_hours:
+                          type: integer
+                          examples:
+                            - 320
+                        play_status:
+                          type: string
+                          examples:
+                            - completed
+                        pack_version:
+                          type: string
+                          examples:
+                            - 2.9.3
+                        helpful_votes:
+                          type: integer
+                          examples:
+                            - 18
+                        unhelpful_votes:
+                          type: integer
+                          examples:
+                            - 1
+                        is_verified_developer:
+                          type: boolean
+                          examples:
+                            - false
+                        author:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              examples:
+                                - 1
+                            name:
+                              type: string
+                              examples:
+                                - Steve
+                        project:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              examples:
+                                - 42
+                            name:
+                              type: string
+                              examples:
+                                - RLCraft
+                            slug:
+                              type: string
+                              examples:
+                                - rlcraft
+                            type:
+                              type: string
+                              examples:
+                                - modpack
+                        created_at:
+                          type: string
+                          examples:
+                            - '2026-03-01T00:00:00+00:00'
+                        edited_at:
+                          type:
+                            - string
+                            - 'null'
+                          examples:
+                            - null
+                        public_moderator_note:
+                          type:
+                            - string
+                            - 'null'
+                          examples:
+                            - null
+                    examples:
+                      -
+                        -
+                          id: 7
+                          is_quick_rating: false
+                          title: 'Brutal but rewarding'
+                          content: "RLCraft is the hardest modpack I've ever played..."
+                          rating: 4.5
+                          gameplay_rating: 4.8
+                          performance_rating: 4
+                          aesthetics_rating: 4.5
+                          minecraft_version: 1.12.2
+                          playtime_hours: 320
+                          play_status: completed
+                          pack_version: 2.9.3
+                          helpful_votes: 18
+                          unhelpful_votes: 1
+                          is_verified_developer: false
+                          author:
+                            id: 1
+                            name: Steve
+                          project:
+                            id: 42
+                            name: RLCraft
+                            slug: rlcraft
+                            type: modpack
+                          created_at: '2026-03-01T00:00:00+00:00'
+                          edited_at: null
+                          public_moderator_note: null
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                        examples:
+                          - ...
+                      last:
+                        type: string
+                        examples:
+                          - ...
+                      prev:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      next:
+                        type: string
+                        examples:
+                          - ...
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        examples:
+                          - 1
+                      last_page:
+                        type: integer
+                        examples:
+                          - 1
+                      per_page:
+                        type: integer
+                        examples:
+                          - 15
+                      total:
+                        type: integer
+                        examples:
+                          - 3
+                examples:
+                  -
+                    data:
+                      -
+                        id: 7
+                        is_quick_rating: false
+                        title: 'Brutal but rewarding'
+                        content: "RLCraft is the hardest modpack I've ever played..."
+                        rating: 4.5
+                        gameplay_rating: 4.8
+                        performance_rating: 4.0
+                        aesthetics_rating: 4.5
+                        minecraft_version: 1.12.2
+                        playtime_hours: 320
+                        play_status: completed
+                        pack_version: 2.9.3
+                        helpful_votes: 18
+                        unhelpful_votes: 1
+                        is_verified_developer: false
+                        author:
+                          id: 1
+                          name: Steve
+                        project:
+                          id: 42
+                          name: RLCraft
+                          slug: rlcraft
+                          type: modpack
+                        created_at: '2026-03-01T00:00:00+00:00'
+                        edited_at: null
+                        public_moderator_note: null
+                    links:
+                      first: ...
+                      last: ...
+                      prev: null
+                      next: ...
+                    meta:
+                      current_page: 1
+                      last_page: 1
+                      per_page: 15
+                      total: 3
+      tags:
+        - Projects
+    parameters:
+      -
+        in: path
+        name: project_slug
+        description: 'The modpack slug.'
+        required: true
+        schema:
+          type: string
+          examples:
+            - rlcraft
+  '/api/v1/reviews/{id}':
+    get:
+      summary: 'Show a review.'
+      operationId: showAReview
+      description: 'Returns full details for a single review by ID. Only approved reviews are accessible; pending or rejected reviews return 404. Includes the review author, associated project, category ratings, Minecraft version context, playtime, and community vote counts.'
+      parameters: []
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        examples:
+                          - 1
+                      is_quick_rating:
+                        type: boolean
+                        examples:
+                          - false
+                      title:
+                        type: string
+                        examples:
+                          - 'Amazing mod!'
+                      content:
+                        type: string
+                        examples:
+                          - 'This mod completely changed how I play Minecraft...'
+                      rating:
+                        type: number
+                        examples:
+                          - 4.5
+                      gameplay_rating:
+                        type: number
+                        examples:
+                          - 4.0
+                      performance_rating:
+                        type: number
+                        examples:
+                          - 4.5
+                      aesthetics_rating:
+                        type: number
+                        examples:
+                          - 5.0
+                      minecraft_version:
+                        type: string
+                        examples:
+                          - 1.20.1
+                      playtime_hours:
+                        type: integer
+                        examples:
+                          - 500
+                      play_status:
+                        type: string
+                        examples:
+                          - completed
+                      pack_version:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      helpful_votes:
+                        type: integer
+                        examples:
+                          - 5
+                      unhelpful_votes:
+                        type: integer
+                        examples:
+                          - 0
+                      is_verified_developer:
+                        type: boolean
+                        examples:
+                          - false
+                      author:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            examples:
+                              - 1
+                          name:
+                            type: string
+                            examples:
+                              - Steve
+                      project:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            examples:
+                              - 1
+                          name:
+                            type: string
+                            examples:
+                              - Create
+                          slug:
+                            type: string
+                            examples:
+                              - create
+                          type:
+                            type: string
+                            examples:
+                              - mod
+                      created_at:
+                        type: string
+                        examples:
+                          - '2026-03-01T00:00:00+00:00'
+                      edited_at:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      public_moderator_note:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                examples:
+                  -
+                    data:
+                      id: 1
+                      is_quick_rating: false
+                      title: 'Amazing mod!'
+                      content: 'This mod completely changed how I play Minecraft...'
+                      rating: 4.5
+                      gameplay_rating: 4.0
+                      performance_rating: 4.5
+                      aesthetics_rating: 5.0
+                      minecraft_version: 1.20.1
+                      playtime_hours: 500
+                      play_status: completed
+                      pack_version: null
+                      helpful_votes: 5
+                      unhelpful_votes: 0
+                      is_verified_developer: false
+                      author:
+                        id: 1
+                        name: Steve
+                      project:
+                        id: 1
+                        name: Create
+                        slug: create
+                        type: mod
+                      created_at: '2026-03-01T00:00:00+00:00'
+                      edited_at: null
+                      public_moderator_note: null
+        404:
+          description: 'Not Found'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - 'Not Found'
+                examples:
+                  -
+                    message: 'Not Found'
+      tags:
+        - Reviews
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The review ID.'
+        required: true
+        schema:
+          type: integer
+          examples:
+            - 1
+  /api/v1/tags:
+    get:
+      summary: 'List tags.'
+      operationId: listTags
+      description: 'Returns the taxonomy tags used to categorize projects. Filter by `type` to get a specific category: `genre` (Technology, Magic, Adventure...), `feature` (Redstone, Worldgen, Mobs...), `theme` (Automation, Exploration...), or `dev_environment`. Mod loaders and Minecraft versions are not tags. Read the `mod_loaders` and `minecraft_versions` fields on project responses instead.'
+      parameters:
+        -
+          in: query
+          name: type
+          description: 'Filter by tag type (`genre`, `feature`, `theme`, `dev_environment`).'
+          required: false
+          schema:
+            type: string
+            description: 'Filter by tag type (`genre`, `feature`, `theme`, `dev_environment`).'
+            examples:
+              - genre
+        -
+          in: query
+          name: per_page
+          description: 'Results per page (max 100). Default: 50.'
+          required: false
+          schema:
+            type: integer
+            description: 'Results per page (max 100). Default: 50.'
+            examples:
+              - 50
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          examples:
+                            - 1
+                        name:
+                          type: string
+                          examples:
+                            - Technology
+                        slug:
+                          type: string
+                          examples:
+                            - technology
+                        type:
+                          type: string
+                          examples:
+                            - genre
+                        description:
+                          type: string
+                          examples:
+                            - 'Mods focused on technology and automation.'
+                    examples:
+                      -
+                        - id: 1
+                          name: Technology
+                          slug: technology
+                          type: genre
+                          description: 'Mods focused on technology and automation.'
+                  links:
+                    type: object
+                    properties:
+                      first:
+                        type: string
+                        examples:
+                          - ...
+                      last:
+                        type: string
+                        examples:
+                          - ...
+                      prev:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                      next:
+                        type:
+                          - string
+                          - 'null'
+                        examples:
+                          - null
+                  meta:
+                    type: object
+                    properties:
+                      current_page:
+                        type: integer
+                        examples:
+                          - 1
+                      last_page:
+                        type: integer
+                        examples:
+                          - 1
+                      per_page:
+                        type: integer
+                        examples:
+                          - 50
+                      total:
+                        type: integer
+                        examples:
+                          - 12
+                examples:
+                  -
+                    data:
+                      -
+                        id: 1
+                        name: Technology
+                        slug: technology
+                        type: genre
+                        description: 'Mods focused on technology and automation.'
+                    links:
+                      first: ...
+                      last: ...
+                      prev: null
+                      next: null
+                    meta:
+                      current_page: 1
+                      last_page: 1
+                      per_page: 50
+                      total: 12
+      tags:
+        - Tags
