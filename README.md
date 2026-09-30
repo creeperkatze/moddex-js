@@ -1,6 +1,6 @@
 # moddex-js
 
-A framework-agnostic fully typed JavaScript client for the [ModDex API](https://moddex.gg/docs), the Minecraft mod and modpack review platform.
+A framework-agnostic fully typed JavaScript client for the [ModDex](https://moddex.gg) API, the Minecraft mod and modpack review platform.
 
 [![NPM Version](https://img.shields.io/npm/v/moddex-js)](https://www.npmjs.com/package/moddex-js)
 [![NPM Downloads](https://img.shields.io/npm/dt/moddex-js)](https://www.npmjs.com/package/moddex-js)
