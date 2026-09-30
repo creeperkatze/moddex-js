@@ -1,6 +1,6 @@
 {
   "name": "moddex-js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A framework-agnostic fully typed JavaScript client for the ModDex API",
   "homepage": "https://moddex-js.creeperkatze.dev",
   "type": "module",
