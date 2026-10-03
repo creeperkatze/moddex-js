@@ -17,43 +17,55 @@ jobs:
         name: Lint
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout
+              uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref || github.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - name: Set up pnpm
+              uses: pnpm/action-setup@v4
 
-            - uses: actions/setup-node@v4
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
               with:
                   node-version: 24
                   cache: pnpm
 
-            - run: pnpm install --frozen-lockfile
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
 
-            - run: pnpm lint
+            - name: Lint
+              run: pnpm lint
 
     test:
         name: Test
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout
+              uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref || github.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - name: Set up pnpm
+              uses: pnpm/action-setup@v4
 
-            - uses: actions/setup-node@v4
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
               with:
                   node-version: 24
                   cache: pnpm
 
-            - run: pnpm install --frozen-lockfile
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
 
-            - run: pnpm test
+            - name: Run tests
+              run: pnpm test
 
-            - run: pnpm test:coverage
+            - name: Run tests with coverage
+              run: pnpm test:coverage
 
-            - uses: codecov/codecov-action@v5
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v5
               with:
                   files: ./coverage/lcov.info
                   token: ${{ secrets.CODECOV_TOKEN }}
