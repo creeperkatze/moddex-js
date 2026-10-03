@@ -1,14 +1,6 @@
-import { h } from 'vue';
-import DefaultTheme from 'vitepress/theme';
+import { createTheme } from '../shared/theme';
 
-import SponsorButton from './SponsorButton.vue';
+// Must come after the theme so the brand colors win
 import './custom.css';
 
-export default {
-  extends: DefaultTheme,
-  Layout() {
-    return h(DefaultTheme.Layout, null, {
-      'nav-bar-content-after': () => h(SponsorButton),
-    });
-  },
-};
+export default createTheme({ donate: 'github' });
