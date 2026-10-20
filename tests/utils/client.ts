@@ -6,9 +6,13 @@ export function createTestClient(responses: Response[] = [], options: Partial<Mo
   const mockFetch = createMockFetch(responses);
   const client = new ModDexClient({
     baseUrl: 'https://moddex.gg',
-    token: 'test-token',
     fetch: mockFetch as unknown as typeof fetch,
     ...options,
   });
   return { client, mockFetch };
+}
+
+/** Returns the query string of a recorded request exactly as sent, without the leading `?`. */
+export function rawQuery(request: Request | undefined): string {
+  return new URL(request!.url).search.slice(1);
 }
