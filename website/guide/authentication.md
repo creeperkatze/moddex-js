@@ -1,21 +1,30 @@
 # Authentication
 
-## Tokens
+## Do you need a token?
 
-Pass your personal API token when creating the client. It is sent as `Authorization: Bearer <token>` on every request.
+No. Every v2 endpoint is public, and responses are the same with or without a token. A token only raises your [rate limits](/guide/pagination#rate-limits):
+
+| | Without a token | With a token |
+|---|---|---|
+| All requests, per minute | 60, per IP | 300, per account |
+| Searches and filtered listings, per minute | 30 | 120 |
+
+## Using a token
+
+Create a token on [moddex.gg](https://moddex.gg) under **Settings > API Tokens** and pass it to the client. It is sent as `Authorization: Bearer <token>` on every request.
 
 ```ts
-const client = new ModDexClient({ token: 'your-api-token' });
+const client = new ModDexClient({ client: 'my-bot/1.0.0', token: process.env.MODDEX_API_TOKEN });
 ```
 
-The constructor throws a `TypeError` if the token is missing or empty.
+The constructor throws a `TypeError` for an empty token. Leave `token` out instead.
 
 > [!WARNING]
-> A token grants read access as you. Don't ship it in a public website's client-side code. Browser extensions and local tools that use the user's own token are fine.
+> Anyone who can read your code can read the token. Keep it on a server. Don't put it in a browser extension or a web page: they work without one.
 
 ## Token expiry
 
-Tokens expire 90 days after they are created. Successful responses include an `X-ModDex-Token-Expires` header, which the client exposes as `client.tokenExpiry`:
+Tokens expire 90 days after they are created. Responses to requests with a token include an `X-ModDex-Token-Expires` header, which the client exposes as `client.tokenExpiry`:
 
 ```ts
 await client.user.get();
@@ -34,18 +43,15 @@ if (expiry?.expiresAt) {
 
 `client.tokenExpiry` is `null` until the first response that carries the header, and it keeps the last value seen. Responses served from the [cache](/guide/caching) don't update it.
 
-> [!NOTE]
-> In browsers, JavaScript can only read this header if the API exposes it through CORS (`Access-Control-Expose-Headers`). If it doesn't, `tokenExpiry` stays `null`.
-
 ## Authentication errors
 
-A `401` response throws `ModDexAuthenticationError`. Its `code` tells you why:
+A token that doesn't work throws `ModDexAuthenticationError`. ModDex never quietly falls back to guest access. Its `code` tells you why:
 
 | `code` | Meaning |
 |---|---|
-| `token_missing` | No token was sent |
-| `token_invalid` | The token is wrong or was revoked |
+| `unauthenticated` | The token is unknown, malformed or revoked |
 | `token_expired` | The token is past its 90 days |
+| `token_missing` | Only from `client.user.get()`: no token was sent |
 
 ```ts
 import { ModDexAuthenticationError } from 'moddex-js';
@@ -59,6 +65,4 @@ try {
 }
 ```
 
-`code` and `hint` are `null` if the API didn't include them.
-
-A `403` response throws `ModDexForbiddenError`. This happens when the token lacks the read ability or the account's email address isn't verified.
+A `403` throws `ModDexForbiddenError`: your client is blocked, or the token can't be used because it lacks the read ability or the account isn't verified.

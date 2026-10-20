@@ -99,8 +99,8 @@ export class ModDexAmbiguousError extends ModDexValidationError {
   }
 }
 
-/** Options of the errors that carry a `Retry-After`. */
-interface RetryableErrorOptions extends ModDexErrorOptions {
+/** Options accepted by the errors that carry a `Retry-After`. */
+export interface RetryableErrorOptions extends ModDexErrorOptions {
   retryAfter?: number | null;
 }
 

@@ -6,14 +6,19 @@ Every failure throws a subclass of `ModDexError`. Catch `ModDexError` to handle 
 
 | Class | When | Extra properties |
 |---|---|---|
-| `ModDexAuthenticationError` | `401`: token missing, invalid, or expired | `code`, `hint` |
-| `ModDexForbiddenError` | `403`: token lacks the read ability, or email not verified | |
-| `ModDexNotFoundError` | `404`: unknown slug, or a review that isn't approved | |
-| `ModDexValidationError` | `422`: a query parameter failed validation | `errors` |
-| `ModDexRateLimitError` | `429`: more than 60 requests per minute | `retryAfter` |
+| `ModDexAuthenticationError` | `401`: the token is invalid or expired | |
+| `ModDexForbiddenError` | `403`: your client is blocked, or the token can't be used | |
+| `ModDexNotFoundError` | `404`: no such project, review or route, or a lookup that matched nothing | |
+| `ModDexConflictError` | `409`: the keys of `lookup.find` match different projects | `matches` |
+| `ModDexValidationError` | `422`: a parameter is invalid, the page is too deep, or a sync cursor was edited | `errors` |
+| `ModDexAmbiguousError` | `422`: a slug belongs to a mod and a modpack, and no `type` was given | `candidates` |
+| `ModDexRateLimitError` | `429`: over your rate limit | `retryAfter` |
+| `ModDexServiceUnavailableError` | `503`: the API is busy or search is down | `retryAfter` |
 | `ModDexTimeoutError` | No response within `timeoutMs` | |
 | `ModDexNetworkError` | The request failed before a response arrived (DNS, connection, CORS) | |
 | `ModDexError` | Any other status, or a success response that isn't JSON | |
+
+`ModDexAmbiguousError` extends `ModDexValidationError`.
 
 ## Common properties
 
@@ -21,6 +26,8 @@ Every failure throws a subclass of `ModDexError`. Catch `ModDexError` to handle 
 |---|---|---|
 | `message` | `string` | The API's `message`, or `HTTP <status>` |
 | `status` | `number` | HTTP status code, or `0` if no response was received |
+| `code` | `string \| null` | The stable error code, such as `not_found` or `page_depth_exceeded`. Branch on this rather than on `message` |
+| `hint` | `string \| null` | What to change, when ModDex has a suggestion |
 | `body` | `unknown` | The parsed response body, if any |
 | `response` | `Response \| undefined` | The raw fetch `Response`, if any |
 | `cause` | `unknown` | The underlying error for timeouts and network failures |
@@ -29,7 +36,7 @@ Every failure throws a subclass of `ModDexError`. Catch `ModDexError` to handle 
 
 ```ts
 import ModDexClient, {
-  ModDexAuthenticationError,
+  ModDexAmbiguousError,
   ModDexError,
   ModDexNotFoundError,
   ModDexRateLimitError,
@@ -37,18 +44,18 @@ import ModDexClient, {
 } from 'moddex-js';
 
 try {
-  await client.mods.get('create');
+  await client.lookup.get('curseforge', 'sodium');
 } catch (err) {
   if (err instanceof ModDexNotFoundError) {
-    // No project with that slug
-  } else if (err instanceof ModDexAuthenticationError) {
-    console.error(err.code, err.hint); // e.g. "token_expired"
+    // Not on ModDex
+  } else if (err instanceof ModDexAmbiguousError) {
+    console.error(err.candidates.map((project) => project.type)); // ['mod', 'modpack']
   } else if (err instanceof ModDexRateLimitError) {
     console.error(`Rate limited, retry in ${err.retryAfter ?? 60}s`);
   } else if (err instanceof ModDexValidationError) {
-    console.error(err.errors); // { per_page: ['...'] }
+    console.error(err.code, err.errors); // "validation_failed", { per_page: ['...'] }
   } else if (err instanceof ModDexError) {
-    console.error(err.status, err.message);
+    console.error(err.status, err.code, err.message);
   } else {
     throw err;
   }
@@ -57,11 +64,11 @@ try {
 
 ## Validation errors
 
-`errors` maps each invalid field to its messages, following Laravel's format:
+`errors` maps each invalid parameter to its messages. An unknown filter value lists the valid ones:
 
 ```ts
 try {
-  await client.projects.list({ per_page: 500 });
+  await client.projects.list({ genres: ['techh'] });
 } catch (err) {
   if (err instanceof ModDexValidationError) {
     for (const [field, messages] of Object.entries(err.errors)) {
@@ -71,6 +78,8 @@ try {
 }
 ```
 
-## Rate limit errors
+`errors` is empty for `page_depth_exceeded` (more than 10,000 rows into a list) and `invalid_cursor`.
+
+## Rate limit and availability errors
 
 `retryAfter` is the number of seconds from the `Retry-After` header, or `null` if the header was missing. The `iterate*` helpers already wait and retry for you, see [Pagination & Rate Limits](/guide/pagination).

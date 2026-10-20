@@ -22,51 +22,50 @@ bun add moddex-js
 
 :::
 
-## Create an API token
-
-Every request needs a personal API token. Create one on [moddex.gg](https://moddex.gg) under **Settings > API Tokens**. Tokens are read-only, expire after 90 days, and can be revoked at any time.
+moddex-js 2.x talks to the ModDex API v2. If you are coming from 1.x, see [Migrating from 1.x](/guide/migrating).
 
 ## Create a client
+
+The ModDex API is public, so you don't need an account or a token. Identify your app with `client`, which is sent as the `X-Client` header. ModDex uses it to tell your traffic apart and to get in touch before blocking anything.
 
 ```ts
 import ModDexClient from 'moddex-js';
 
-const client = new ModDexClient({
-  token: process.env.MODDEX_API_TOKEN!,
-  userAgent: 'my-app/1.0',
-});
+const client = new ModDexClient({ client: 'my-app/1.0.0' });
 ```
 
 ## Fetch some data
 
 ```ts
-const mod = await client.mods.get('create');
-const modpack = await client.modpacks.get('rlcraft');
+// A project by its Modrinth slug, CurseForge ID, ModDex slug, or a pasted link
+const { data: sodium } = await client.lookup.get('modrinth', 'sodium');
+const { data: fromLink } = await client.lookup.find({ url: 'https://www.curseforge.com/minecraft/modpacks/rlcraft' });
 
-const { data: topRated } = await client.projects.list({
-  sort: 'bayesian_rating',
-  direction: 'desc',
-});
+// Its reviews, with the rating and links in meta.project, in one request
+const { data: reviews, meta } = await client.lookup.listReviews('modrinth', 'sodium');
+
+// The catalog, as the website shows it
+const { data: topTech } = await client.projects.list({ genres: ['tech'], sort: 'bayesian_rating' });
 ```
 
-Single resources are returned directly. List endpoints return the full page envelope with `data`, `links`, and `meta`.
+Single resources are returned directly. List endpoints return the full page envelope with `data`, `links`, and `meta`. Lookups also return `matched`, which says how the value matched.
 
 ## Common options
 
 ```ts
 const client = new ModDexClient({
-  token: 'your-api-token',
+  client: 'my-app/1.0.0',
+  token: process.env.MODDEX_API_TOKEN, // optional
   baseUrl: 'https://moddex.gg',
   timeoutMs: 10_000,
-  userAgent: 'my-app/1.0',
-  cache: { ttlMs: 60_000 },
+  cache: { ttlMs: 5 * 60_000 },
 });
 ```
 
 ## Where to go next
 
-- [Authentication](/guide/authentication) covers tokens and expiry
-- [Error Handling](/guide/error-handling) lists every error class
+- [Lookup](/guide/lookup) finds projects from CurseForge and Modrinth IDs, slugs, links and files
 - [Pagination & Rate Limits](/guide/pagination) shows how to walk every page
-- [Known Limits](/guide/limitations) explains what the API cannot do
+- [Error Handling](/guide/error-handling) lists every error class
+- [Showing ModDex Content](/guide/limitations) covers escaping, masking and attribution
 - [API Reference](/api/) has the generated docs for every type
