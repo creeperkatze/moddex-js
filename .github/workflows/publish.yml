@@ -18,9 +18,30 @@ jobs:
         with:
             ref: ${{ github.ref }}
 
+    channel:
+        name: Pick dist-tag
+        runs-on: ubuntu-latest
+        outputs:
+            tag: ${{ steps.channel.outputs.tag }}
+        steps:
+            # A release of an older major goes to release-<major> so it doesn't take over latest.
+            - name: Pick dist-tag
+              id: channel
+              env:
+                  VERSION: ${{ github.ref_name }}
+              run: |
+                  version="${VERSION#v}"
+                  latest="$(curl -fsS https://registry.npmjs.org/-/package/moddex-js/dist-tags | jq -r '.latest // empty')"
+                  if [[ -n "$latest" && "${version%%.*}" -lt "${latest%%.*}" ]]; then
+                      tag="release-${version%%.*}"
+                  else
+                      tag=latest
+                  fi
+                  echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
     publish:
         name: Publish to npm
-        needs: test
+        needs: [test, channel]
         runs-on: ubuntu-latest
         permissions:
             contents: read
@@ -45,11 +66,13 @@ jobs:
               run: pnpm build
 
             - name: Publish to npm
-              run: pnpm publish --no-git-checks
+              run: pnpm publish --no-git-checks --tag "$DIST_TAG"
+              env:
+                  DIST_TAG: ${{ needs.channel.outputs.tag }}
 
     release:
         name: GitHub Release
-        needs: test
+        needs: [test, channel]
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -58,5 +81,6 @@ jobs:
               uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
               with:
                   draft: true
+                  make_latest: ${{ needs.channel.outputs.tag == 'latest' }}
                   generate_release_notes: true
                   token: ${{ secrets.GH_PAT }}

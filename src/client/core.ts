@@ -2,7 +2,7 @@ import { ModDexError, ModDexNetworkError, ModDexTimeoutError } from '../errors.j
 import { ResponseCache } from '../utils/cache.js';
 import { createApiError } from '../utils/errors.js';
 import { buildApiUrl, normalizeBaseUrl, parseErrorBody } from '../utils/request.js';
-import type { ModDexClientOptions, TokenExpiry } from '../types/base.js';
+import type { ModDexClientOptions, RateLimit, TokenExpiry } from '../types/base.js';
 
 const DEFAULT_BASE_URL = 'https://moddex.gg';
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -16,20 +16,23 @@ export interface RequestOptions {
 /** Low-level HTTP client used internally by all API namespace classes. */
 export class ModDexClientCore {
   readonly #baseUrl: string;
-  readonly #token: string;
+  readonly #token: string | undefined;
+  readonly #client: string | undefined;
   readonly #timeoutMs: number;
   readonly #userAgent: string | undefined;
   readonly #fetch: typeof globalThis.fetch | undefined;
   readonly #cache: ResponseCache | undefined;
   #tokenExpiry: TokenExpiry | null = null;
+  #rateLimit: RateLimit | null = null;
 
-  constructor(options: ModDexClientOptions) {
-    if (!options || typeof options.token !== 'string' || options.token.trim() === '') {
-      throw new TypeError('A ModDex API token is required. Create one under Settings > API Tokens on moddex.gg.');
+  constructor(options: ModDexClientOptions = {}) {
+    if (options.token !== undefined && (typeof options.token !== 'string' || options.token.trim() === '')) {
+      throw new TypeError('token must be a non-empty string when given. Omit it to use the API without a token.');
     }
 
     this.#baseUrl = normalizeBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
     this.#token = options.token;
+    this.#client = options.client;
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#userAgent = options.userAgent;
     // Stored as given and resolved per request: never bind or capture `globalThis.fetch` up front.
@@ -43,6 +46,11 @@ export class ModDexClientCore {
   /** Token expiry from the most recent response that carried the `X-ModDex-Token-Expires` header. */
   get tokenExpiry(): TokenExpiry | null {
     return this.#tokenExpiry ? { ...this.#tokenExpiry } : null;
+  }
+
+  /** Rate limit state from the most recent response that carried the `X-RateLimit-*` headers. */
+  get rateLimit(): RateLimit | null {
+    return this.#rateLimit ? { ...this.#rateLimit } : null;
   }
 
   /** Removes every cached response. No-op when caching is disabled. */
@@ -71,14 +79,10 @@ export class ModDexClientCore {
   }
 
   async #send(url: string): Promise<Response> {
-    const headers = new Headers({
-      Accept: 'application/json',
-      Authorization: `Bearer ${this.#token}`,
-    });
-
-    if (this.#userAgent) {
-      headers.set('User-Agent', this.#userAgent);
-    }
+    const headers = new Headers({ Accept: 'application/json' });
+    if (this.#token) headers.set('Authorization', `Bearer ${this.#token}`);
+    if (this.#client) headers.set('X-Client', this.#client);
+    if (this.#userAgent) headers.set('User-Agent', this.#userAgent);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
@@ -99,6 +103,7 @@ export class ModDexClientCore {
     }
 
     this.#readTokenExpiry(response);
+    this.#readRateLimit(response);
 
     if (!response.ok) {
       throw createApiError(response, await parseErrorBody(response));
@@ -124,5 +129,14 @@ export class ModDexClientCore {
 
     const date = new Date(raw);
     this.#tokenExpiry = { raw, expiresAt: Number.isNaN(date.getTime()) ? null : date };
+  }
+
+  #readRateLimit(response: Response): void {
+    const limit = Number(response.headers.get('X-RateLimit-Limit') ?? NaN);
+    const remaining = Number(response.headers.get('X-RateLimit-Remaining') ?? NaN);
+    if (!Number.isFinite(limit) || !Number.isFinite(remaining)) return;
+
+    const reset = Number(response.headers.get('X-RateLimit-Reset') ?? NaN);
+    this.#rateLimit = { limit, remaining, resetAt: Number.isFinite(reset) ? new Date(reset * 1000) : null };
   }
 }

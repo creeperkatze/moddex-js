@@ -1,42 +1,98 @@
 # Projects
 
-Projects are mods and modpacks. Mods and modpacks are fetched by their ModDex slug, the last part of their URL on moddex.gg.
+Projects are mods and modpacks, addressed by their ModDex project ID. To get the ID from a CurseForge or Modrinth ID, slug or link, use [Lookup](/guide/lookup).
 
-## List projects
+Projects come in three shapes:
+
+| Shape | Type | Where |
+|---|---|---|
+| Summary | `ProjectSummary` | Lookups, batches, reviews: `id`, `name`, `slug`, `type`, `logo_url`, `available`, `rating`, `links` |
+| List | `ProjectListItem` | Project lists: the summary plus taxonomy, downloads, versions and counts |
+| Full | `Project` | `projects.get` and lookups: everything, plus `include` blocks |
+
+Ratings are in `rating`: `average` and `bayesian` are `null` (not `0`) when nobody has rated the project.
+
+## List and search projects
+
+`list` is the catalog as a guest sees it on the website, with every filter and sort it has:
 
 ```ts
 const { data: projects, meta } = await client.projects.list({
-  type: 'mod',                  // 'mod' | 'modpack'
-  sort: 'bayesian_rating',      // see below
-  direction: 'desc',            // 'asc' | 'desc', default 'desc'
-  featured: true,               // only editor picks
-  per_page: 50,                 // max 50, default 15
-  page: 1,
+  q: 'create addon',             // full-text search, 3 to 200 characters
+  type: 'mod',
+  loaders: ['fabric', 'quilt'],
+  minecraft_versions: ['1.21.1'],
+  genres: ['tech'],
+  genres_exclude: ['magic'],
+  min_rating: 4,
+  sort: 'downloads_count',        // default 'bayesian_rating', or 'relevance' with q
+  per_page: 50,                   // max 50, default 20
 });
 ```
 
-Sort fields: `name` (default), `average_rating`, `bayesian_rating`, `total_ratings`, `total_reviews`, `downloads_count`, `last_updated_at`.
+Filter values are slugs, and every slug in a response is a valid filter value, so "more like this" is one step. [`catalog.getFilters()`](/guide/catalog) lists every parameter and its valid values. A search or any filter counts against the lower search [rate limit](/guide/pagination#rate-limits).
 
-`bayesian_rating` pulls projects with few reviews toward the site-wide average, so one 5-star review can't outrank a project with hundreds of reviews. `total_ratings` and `total_reviews` both sort by total ratings (quick ratings plus written reviews).
+To walk every page, use `client.projects.iterate()`.
 
-To walk every page, use `client.projects.iterate()`. See [Pagination](/guide/pagination).
-
-## Get a mod or modpack
+## Get a project
 
 ```ts
-const mod = await client.mods.get('create');
-const modpack = await client.modpacks.get('rlcraft');
+const project = await client.projects.get(1234, { include: ['ratings', 'counts'] });
 
-mod.gameplay_rating;        // category ratings
-mod.features;               // taxonomy tags
-mod.platform_urls.source;   // external links
-mod.curseforge.id;          // CurseForge project id
-mod.curseforge.authors;     // [{ name, url }]
+project.rating.average;           // mean rating, or null
+project.ratings?.categories;      // with include: ratings, histograms per category
+project.curseforge?.url;          // null when not on CurseForge
+project.modrinth?.organization;   // the owning Modrinth organization
+project.authors;                  // credits with each platform's URL and handle
+project.sources;                  // every listing, including merged loader-specific ones
 ```
 
-An unknown slug throws `ModDexNotFoundError`.
+Heavy blocks are left out unless you ask for them:
 
-The detail response has more fields than the list response, such as category ratings, `features`, `themes`, `platform_urls`, and CurseForge data. The list response has `bayesian_rating`, which the detail response doesn't.
+| `include` | Adds |
+|---|---|
+| `description` | `curseforge.description_html`, `modrinth.description` and `modrinth.description_html` |
+| `ratings` | `ratings`: histograms per star and per category, and ranks |
+| `counts` | `counts.followers`, `counts.stacks`, `counts.library_entries` |
+| `completion` | `avg_completion_hours`, for modpacks |
 
-> [!NOTE]
-> There is no lookup by CurseForge or Modrinth id. See [Known Limits](/guide/limitations).
+Only `*_html` fields are HTML. See [Showing ModDex Content](/guide/limitations).
+
+## Files
+
+The Files tab, one platform at a time. A Modrinth row is a version, with its primary file at the top level and its other files in `secondary_files`. A CurseForge row is a file with its server pack.
+
+```ts
+const { data: files, meta } = await client.projects.listFiles(1234, {
+  platform: 'modrinth',            // default: the website's tab
+  minecraft_version: '1.21.1',
+  loader: 'fabric',
+  include: ['changelog'],          // caps per_page at 10
+});
+
+meta.platforms; // platforms with files
+```
+
+## Dependencies, dependents and modpack contents
+
+```ts
+const deps = await client.projects.listDependencies(1234, { relation_type: 'required' });
+deps.incompatible; // listed in full, not paginated
+
+const packs = await client.projects.listDependents(1234, { type: 'modpack' });
+
+const contents = await client.projects.listContents(5678); // a modpack's mods
+```
+
+A dependency ModDex doesn't have has `project: null` and only the name and platform ID the listing declared. Lists are read one platform at a time: pass `platform` to choose. `listContents` throws `ModDexNotFoundError` for a mod.
+
+## Similar projects and community tags
+
+```ts
+const similar = await client.projects.listSimilar(1234);
+if (!similar.computed) {
+  // A new project: ModDex computes it within 15 minutes
+}
+
+const { active, proposed } = await client.projects.getCommunityTags(1234);
+```

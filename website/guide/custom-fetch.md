@@ -9,7 +9,7 @@ The client only uses web-standard APIs (`fetch`, `Headers`, `URL`, `AbortControl
 - Browser extension service workers (Manifest V3)
 - Deno, Bun, and edge runtimes
 
-It never uses `window`, `document`, or Node-only modules.
+It never uses `window`, `document`, or Node-only modules. ModDex allows every origin through CORS, so browser pages can call it directly.
 
 ## Default fetch
 
@@ -23,7 +23,7 @@ Pass your own `fetch` to add logging, retries, or a proxy, or for runtimes witho
 import ModDexClient from 'moddex-js';
 
 const client = new ModDexClient({
-  token: 'your-api-token',
+  client: 'my-app/1.0.0',
   fetch: async (input, init) => {
     console.log('GET', input);
     return fetch(input, init);
@@ -33,38 +33,42 @@ const client = new ModDexClient({
 
 ## Extension service workers
 
+No token is needed, so an extension can create one client and reuse it:
+
 ```ts
 // background.ts
 import ModDexClient from 'moddex-js';
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type !== 'moddex:mod') return;
+const client = new ModDexClient({ client: `my-extension/${chrome.runtime.getManifest().version}` });
 
-  chrome.storage.local.get('moddexToken').then(async ({ moddexToken }) => {
-    const client = new ModDexClient({ token: moddexToken });
-    sendResponse(await client.mods.get(message.slug));
-  });
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type !== 'moddex:reviews') return;
+
+  client.lookup
+    .listReviews('modrinth', message.slug, { per_page: 5 })
+    .then((page) => sendResponse({ ok: true, page }))
+    .catch(() => sendResponse({ ok: false }));
 
   return true;
 });
 ```
 
-Add `https://moddex.gg/*` to `host_permissions` in your manifest.
+Add `https://moddex.gg/*` to `host_permissions` in your manifest if you call it from a content script's origin.
 
-## User-Agent
+## Identifying your client
 
 ```ts
-const client = new ModDexClient({ token: 'your-api-token', userAgent: 'my-dashboard/1.0' });
+const client = new ModDexClient({ client: 'my-dashboard/1.0.0' });
 ```
 
-Browsers ignore custom `User-Agent` headers. The option only has an effect in server runtimes.
+`client` is sent as the `X-Client` header, which works in browsers too. `userAgent` sets the `User-Agent` header, which browsers ignore, so it only has an effect in server runtimes.
 
 ## Timeout
 
 The default timeout is 10 000 ms. A timed-out request throws `ModDexTimeoutError`.
 
 ```ts
-const client = new ModDexClient({ token: 'your-api-token', timeoutMs: 30_000 });
+const client = new ModDexClient({ timeoutMs: 30_000 });
 ```
 
 ## Base URL
@@ -72,5 +76,5 @@ const client = new ModDexClient({ token: 'your-api-token', timeoutMs: 30_000 });
 The default base URL is `https://moddex.gg`. Override it to go through a proxy:
 
 ```ts
-const client = new ModDexClient({ token: 'your-api-token', baseUrl: 'https://my-proxy.example.com' });
+const client = new ModDexClient({ baseUrl: 'https://my-proxy.example.com' });
 ```

@@ -1,5 +1,6 @@
 import type { QueryValue } from '../types/base.js';
 import type { ModDexErrorBody } from '../types/errors.js';
+import type { ProjectSummary } from '../types/projects.js';
 
 /** Strips trailing slashes from a base URL. */
 export function normalizeBaseUrl(baseUrl: string): string {
@@ -10,48 +11,78 @@ export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
-/**
- * Appends query parameters to a URL, skipping null and undefined values.
- * Booleans are sent as `1` / `0`, which Laravel's `boolean` validation rule accepts (it rejects `"true"`).
- */
-export function appendQuery(url: URL, query?: object): URL {
-  if (!query) return url;
+function encodeQueryValue(value: Exclude<QueryValue, null | undefined>): string {
+  if (typeof value === 'boolean') return value ? '1' : '0';
+  // ModDex splits lists on literal commas, so each item is encoded on its own and the commas are left as they are.
+  if (Array.isArray(value)) return value.map((item) => encodeURIComponent(String(item))).join(',');
+  return encodeURIComponent(String(value));
+}
 
+/**
+ * Serializes query parameters, skipping null and undefined values and empty arrays.
+ * Booleans are sent as `1` / `0`, arrays as comma-separated lists.
+ */
+export function buildQueryString(query?: object): string {
+  if (!query) return '';
+
+  const parts: string[] = [];
   for (const [key, value] of Object.entries(query as Record<string, QueryValue>)) {
-    if (value == null) continue;
-    url.searchParams.append(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
+    if (value == null || (Array.isArray(value) && value.length === 0)) continue;
+    parts.push(`${encodeURIComponent(key)}=${encodeQueryValue(value)}`);
   }
 
-  return url;
+  return parts.join('&');
 }
 
 /** Constructs the full API URL for a given path and optional query parameters. */
 export function buildApiUrl(baseUrl: string, path: string, query?: object): string {
   const trimmedPath = path.replace(/^\/+/, '');
-  const url = new URL(`${normalizeBaseUrl(baseUrl)}/${trimmedPath}`);
-  return appendQuery(url, query).toString();
+  const queryString = buildQueryString(query);
+  return `${normalizeBaseUrl(baseUrl)}/${trimmedPath}${queryString ? `?${queryString}` : ''}`;
 }
 
-/** Narrows an unknown response body to the Laravel error shape, dropping fields of the wrong type. */
-export function toErrorBody(body: unknown): ModDexErrorBody {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
+/** Encodes a value as a single URL path segment. */
+export function pathSegment(value: string | number): string {
+  return encodeURIComponent(String(value));
+}
 
-  const record = body as Record<string, unknown>;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Narrows an unknown response body to the ModDex error shape, dropping fields of the wrong type. */
+export function toErrorBody(body: unknown): ModDexErrorBody {
+  if (!isRecord(body)) return {};
+
   const result: ModDexErrorBody = {};
 
-  if (typeof record['message'] === 'string') result.message = record['message'];
-  if (typeof record['error'] === 'string') result.error = record['error'];
-  if (typeof record['hint'] === 'string') result.hint = record['hint'];
+  if (typeof body['message'] === 'string') result.message = body['message'];
+  if (typeof body['hint'] === 'string') result.hint = body['hint'];
+  // `/api/user` still answers in the v1 shape, which names the code `error`.
+  if (typeof body['code'] === 'string') result.code = body['code'];
+  else if (typeof body['error'] === 'string') result.code = body['error'];
 
-  const errors = record['errors'];
-  if (errors && typeof errors === 'object' && !Array.isArray(errors)) {
+  const errors = body['errors'];
+  if (isRecord(errors)) {
     result.errors = {};
-    for (const [field, messages] of Object.entries(errors as Record<string, unknown>)) {
+    for (const [field, messages] of Object.entries(errors)) {
       if (Array.isArray(messages)) {
         result.errors[field] = messages.filter((message): message is string => typeof message === 'string');
       } else if (typeof messages === 'string') {
         result.errors[field] = [messages];
       }
+    }
+  }
+
+  if (Array.isArray(body['candidates'])) {
+    result.candidates = body['candidates'].filter(isRecord) as unknown as ProjectSummary[];
+  }
+
+  const matches = body['matches'];
+  if (isRecord(matches)) {
+    result.matches = {};
+    for (const [param, id] of Object.entries(matches)) {
+      if (typeof id === 'number') result.matches[param] = id;
     }
   }
 

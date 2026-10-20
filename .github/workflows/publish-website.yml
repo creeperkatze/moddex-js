@@ -10,9 +10,31 @@ jobs:
         name: Test
         uses: ./.github/workflows/test.yml
 
+    current:
+        name: Check release is current
+        runs-on: ubuntu-latest
+        outputs:
+            current: ${{ steps.current.outputs.current }}
+        steps:
+            # The site documents the latest major, so a release of an older major doesn't replace it.
+            - name: Check release is current
+              id: current
+              env:
+                  VERSION: ${{ github.event.release.tag_name }}
+              run: |
+                  version="${VERSION#v}"
+                  latest="$(curl -fsS https://registry.npmjs.org/-/package/moddex-js/dist-tags | jq -r '.latest // empty')"
+                  if [[ -n "$version" && -n "$latest" && "${version%%.*}" -lt "${latest%%.*}" ]]; then
+                      current=false
+                  else
+                      current=true
+                  fi
+                  echo "current=$current" >> "$GITHUB_OUTPUT"
+
     publish:
         name: Build and Publish Website
-        needs: test
+        needs: [test, current]
+        if: needs.current.outputs.current == 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: read

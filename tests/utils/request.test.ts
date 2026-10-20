@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  appendQuery,
   buildApiUrl,
+  buildQueryString,
   extractErrorMessage,
   normalizeBaseUrl,
   parseRetryAfter,
@@ -20,33 +20,60 @@ describe('normalizeBaseUrl', () => {
 
 describe('buildApiUrl', () => {
   it('joins base URL and path', () => {
-    expect(buildApiUrl('https://moddex.gg', '/api/v1/tags')).toBe('https://moddex.gg/api/v1/tags');
+    expect(buildApiUrl('https://moddex.gg', '/api/v2/tags')).toBe('https://moddex.gg/api/v2/tags');
   });
 
   it('skips null and undefined query values', () => {
-    const url = buildApiUrl('https://moddex.gg', 'api/v1/tags', { type: null, per_page: undefined });
-    expect(url).toBe('https://moddex.gg/api/v1/tags');
+    const url = buildApiUrl('https://moddex.gg', 'api/v2/tags', { type: null, per_page: undefined });
+    expect(url).toBe('https://moddex.gg/api/v2/tags');
+  });
+
+  it('appends the query string', () => {
+    expect(buildApiUrl('https://moddex.gg', 'api/v2/tags', { type: 'genre' })).toBe(
+      'https://moddex.gg/api/v2/tags?type=genre',
+    );
   });
 });
 
-describe('appendQuery', () => {
+describe('buildQueryString', () => {
   it('sends booleans as 1 and 0', () => {
-    const url = appendQuery(new URL('https://moddex.gg/api/v1/projects'), { featured: true, other: false });
-    expect(url.searchParams.get('featured')).toBe('1');
-    expect(url.searchParams.get('other')).toBe('0');
+    expect(buildQueryString({ featured: true, other: false })).toBe('featured=1&other=0');
   });
 
-  it('stringifies numbers', () => {
-    const url = appendQuery(new URL('https://moddex.gg/api/v1/projects'), { page: 2 });
-    expect(url.searchParams.get('page')).toBe('2');
+  it('stringifies numbers and encodes strings', () => {
+    expect(buildQueryString({ page: 2, q: 'a&b c' })).toBe('page=2&q=a%26b%20c');
+  });
+
+  it('encodes list items one by one and joins them with literal commas', () => {
+    expect(buildQueryString({ urls: ['https://a.com/x,y', 'b'], ids: [1, 2] })).toBe(
+      'urls=https%3A%2F%2Fa.com%2Fx%2Cy,b&ids=1,2',
+    );
+  });
+
+  it('skips empty lists', () => {
+    expect(buildQueryString({ genres: [] })).toBe('');
   });
 });
 
 describe('toErrorBody', () => {
-  it('keeps well-typed Laravel error fields', () => {
+  it('keeps well-typed v2 error fields', () => {
     expect(
-      toErrorBody({ message: 'Unauthenticated.', error: 'token_expired', hint: 'Create a new token.' }),
-    ).toEqual({ message: 'Unauthenticated.', error: 'token_expired', hint: 'Create a new token.' });
+      toErrorBody({ message: 'API token has expired.', code: 'token_expired', hint: 'Create a new token.', docs_url: 'x' }),
+    ).toEqual({ message: 'API token has expired.', code: 'token_expired', hint: 'Create a new token.' });
+  });
+
+  it('reads the v1 error field as the code', () => {
+    expect(toErrorBody({ message: 'API token is missing.', error: 'token_missing' })).toEqual({
+      message: 'API token is missing.',
+      code: 'token_missing',
+    });
+  });
+
+  it('keeps conflict matches and ambiguous candidates', () => {
+    expect(toErrorBody({ matches: { curseforge_id: 1, modrinth_id: 'x' }, candidates: [{ id: 1 }, 'x'] })).toEqual({
+      matches: { curseforge_id: 1 },
+      candidates: [{ id: 1 }],
+    });
   });
 
   it('normalizes validation errors and drops non-string messages', () => {

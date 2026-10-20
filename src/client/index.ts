@@ -1,10 +1,9 @@
 export { ModDexClientCore } from './core.js';
 export type { RequestOptions } from './core.js';
-export { ProjectKindApi } from './project-kind.js';
-export { UserApi } from './user.js';
+export { LookupApi } from './lookup.js';
 export { ProjectsApi } from './projects.js';
-export { ModsApi } from './mods.js';
-export { ModpacksApi } from './modpacks.js';
 export { ReviewsApi } from './reviews.js';
-export { TagsApi } from './tags.js';
+export { CatalogApi } from './catalog.js';
+export { SyncApi } from './sync.js';
+export { UserApi } from './user.js';
 export { ModDexClient } from './moddex.js';

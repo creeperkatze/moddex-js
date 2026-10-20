@@ -1,5 +1,8 @@
-/** A value that can be serialized as a URL query parameter. Booleans are sent as `1` / `0`. */
-export type QueryValue = string | number | boolean | null | undefined;
+/**
+ * A value that can be serialized as a URL query parameter. Booleans are sent as `1` / `0`.
+ * Arrays are sent as a comma-separated list, each item encoded on its own.
+ */
+export type QueryValue = string | number | boolean | readonly (string | number)[] | null | undefined;
 
 /** Sort direction accepted by list endpoints. */
 export type SortDirection = 'asc' | 'desc';
@@ -31,14 +34,14 @@ export interface PaginationMeta {
   total: number;
 }
 
-/** Envelope returned by paginated ModDex endpoints. */
-export interface ModDexPaginatedResponse<T> {
+/** Envelope returned by paginated ModDex endpoints. `M` adds endpoint-specific fields to `meta`. */
+export interface ModDexPaginatedResponse<T, M extends object = object> {
   data: T[];
   links: PaginationLinks;
-  meta: PaginationMeta;
+  meta: PaginationMeta & M;
 }
 
-/** Common query parameters for paginated endpoints. */
+/** Common query parameters for paginated endpoints. `page × per_page` may not exceed 10,000. */
 export interface PaginationOptions {
   /** One-based page number to fetch. */
   page?: number;
@@ -46,16 +49,25 @@ export interface PaginationOptions {
   per_page?: number;
 }
 
-/** Options for {@link paginate} and the `iterate*` helpers. */
+/** Query parameter for endpoints that return review text. */
+export interface MaskingOptions {
+  /**
+   * Return review text without profanity masking. Masked text replaces each profane word with asterisks.
+   * @defaultValue false
+   */
+  unmasked?: boolean;
+}
+
+/** Options for {@link paginate}, {@link followCursor} and the `iterate*` helpers. */
 export interface PaginateOptions {
   /**
-   * One-based page to start from.
+   * One-based page to start from. Ignored by cursor feeds.
    * @defaultValue 1
    */
   startPage?: number;
   /**
-   * How many times a single page is retried after a `429 Too Many Requests` response,
-   * waiting for the `Retry-After` duration before each retry.
+   * How many times a single page is retried after a `429 Too Many Requests` or `503 Service Unavailable`
+   * response, waiting for the `Retry-After` duration before each retry.
    * @defaultValue 3
    */
   maxRateLimitRetries?: number;
@@ -64,7 +76,7 @@ export interface PaginateOptions {
 /** In-memory response cache settings. */
 export interface CacheOptions {
   /**
-   * How long a cached response stays fresh, in milliseconds.
+   * How long a cached response stays fresh, in milliseconds. ModDex itself caches responses for 5 minutes.
    * @defaultValue 60000
    */
   ttlMs?: number;
@@ -83,15 +95,31 @@ export interface TokenExpiry {
   expiresAt: Date | null;
 }
 
+/** Rate limit state reported by the `X-RateLimit-*` response headers. */
+export interface RateLimit {
+  /** Your limit for this kind of request, per minute. */
+  limit: number;
+  /** Requests left in the current window. */
+  remaining: number;
+  /** When the window resets, or `null` if the header was missing or unreadable. */
+  resetAt: Date | null;
+}
+
 /** Options for creating a {@link ModDexClient}. */
 export interface ModDexClientOptions {
   /**
-   * Personal API token, created under **Settings > API Tokens** on moddex.gg.
-   * Sent as `Authorization: Bearer <token>` on every request.
+   * Optional personal API token, created under **Settings > API Tokens** on moddex.gg.
+   * Every v2 endpoint is public: a token only raises your rate limits. Anyone who can inspect your code can
+   * read the token, so keep it on a server rather than in a browser extension or web page.
    */
-  token: string;
+  token?: string;
   /**
-   * Base URL of the ModDex API.
+   * Identifies your app as `<name>/<version>`, e.g. `my-app/1.0.0`. Sent as the `X-Client` header, which ModDex
+   * asks every client to send so it can tell traffic apart and get in touch before blocking anything.
+   */
+  client?: string;
+  /**
+   * Base URL of the ModDex website. API paths are appended to it.
    * @defaultValue "https://moddex.gg"
    */
   baseUrl?: string;
@@ -100,7 +128,7 @@ export interface ModDexClientOptions {
    * @defaultValue 10000
    */
   timeoutMs?: number;
-  /** Value to send as the `User-Agent` header on every request. Ignored by browsers. */
+  /** Value to send as the `User-Agent` header on every request. Ignored by browsers, use `client` there. */
   userAgent?: string;
   /**
    * Custom fetch implementation. When omitted, `globalThis.fetch` is looked up at request time,

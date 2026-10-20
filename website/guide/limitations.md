@@ -1,21 +1,25 @@
-# Known Limits
+# Showing ModDex Content
 
-These come from the ModDex API itself, not from this client.
+These come from the ModDex API and its terms, not from this client.
 
-## Projects can only be fetched by ModDex slug
+## Escape plain text
 
-`client.mods.get()` and `client.modpacks.get()` take the ModDex slug. There is no lookup by CurseForge project id or Modrinth id, and the client doesn't try to guess one.
+Only fields named `*_html` are HTML, and ModDex sanitizes them: no scripts or event handlers, no `id` or `class` attributes, and every link is absolute. Everything else is plain text, so escape it before rendering. That includes names, review titles, review `content` (the author's Markdown) and `modrinth.description` (render `description_html` instead).
 
-A project's CurseForge id is available after you have fetched it (`project.curseforge.id`), but you can't go the other way.
+On a page you don't control, such as a browser extension on Modrinth or CurseForge, put ModDex HTML inside a Shadow DOM or a sandboxed iframe, so the host page's styles and scripts can't reach it.
 
-## Review authors only have an id and a name
+## Masked review text
 
-`review.author` contains `id` and `name` and nothing else: no username, avatar, or profile link. There is no endpoint to fetch another user's profile.
+Review text is profanity-masked by default. Pass `unmasked: true` for the original. See [Reviews](/guide/reviews#profanity-masking).
 
-## Read-only
+## Credit ModDex
 
-The API has no endpoints for writing reviews, rating projects, or changing anything else.
+Where you show ModDex ratings or reviews, credit ModDex with the words "Reviews from ModDex", linked to the project's `links.web`. Add `?ref=<your-app>` to links back to ModDex so it can see which integrations send readers. Point "Write a review" buttons at `links.write_review`.
 
-## Rate limit
+## Storing data
 
-60 requests per minute. The limit is per user, not per token. See [Pagination & Rate Limits](/guide/pagination).
+The API is built for showing ModDex data next to your own, not for copying the catalog. If you store data for longer than the HTTP cache keeps it, remove it within 7 days of its removal from ModDex. See [Sync Feeds](/guide/sync#removing-content).
+
+## Read-only and non-commercial
+
+The API has no endpoints for writing reviews, rating projects, or changing anything else. Its terms allow personal and non-commercial use only.

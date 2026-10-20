@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createTestClient } from '../utils/client.js';
 import { createMockFetch, errorResponse, jsonResponse, textResponse } from '../utils/http.js';
-import { MOCK_USER, MOCK_TAG, paginated } from '../utils/fixtures.js';
+import { MOCK_TAG, MOCK_USER, paginated } from '../utils/fixtures.js';
 import {
   ModDexAuthenticationError,
   ModDexError,
@@ -9,6 +9,7 @@ import {
   ModDexNetworkError,
   ModDexNotFoundError,
   ModDexRateLimitError,
+  ModDexServiceUnavailableError,
   ModDexTimeoutError,
   ModDexValidationError,
 } from '../../src/errors.js';
@@ -26,9 +27,21 @@ async function catchError(promise: Promise<unknown>): Promise<unknown> {
 describe('ModDexClientCore', () => {
   describe('requests', () => {
     it('sends the token as a bearer Authorization header', async () => {
-      const { client, mockFetch } = createTestClient([jsonResponse({ data: MOCK_USER })]);
+      const { client, mockFetch } = createTestClient([jsonResponse({ data: MOCK_USER })], { token: 'test-token' });
       await client.user.get();
       expect(mockFetch.lastCall()?.headers.get('Authorization')).toBe('Bearer test-token');
+    });
+
+    it('sends no Authorization header without a token', async () => {
+      const { client, mockFetch } = createTestClient([jsonResponse({ data: [] })]);
+      await client.catalog.listLoaders();
+      expect(mockFetch.lastCall()?.headers.has('Authorization')).toBe(false);
+    });
+
+    it('identifies the app with the X-Client header when configured', async () => {
+      const { client, mockFetch } = createTestClient([jsonResponse({ data: [] })], { client: 'my-app/1.0.0' });
+      await client.catalog.listLoaders();
+      expect(mockFetch.lastCall()?.headers.get('X-Client')).toBe('my-app/1.0.0');
     });
 
     it('asks for JSON and uses GET', async () => {
@@ -56,28 +69,37 @@ describe('ModDexClientCore', () => {
       expect(second.mockFetch.lastCall()?.url).toBe('https://proxy.example.com/api/user');
     });
 
-    it('requires a non-empty token', () => {
+    it('works without options, and rejects a blank token', () => {
+      expect(() => new ModDexClient()).not.toThrow();
       expect(() => new ModDexClient({ token: '' })).toThrow(TypeError);
       expect(() => new ModDexClient({ token: '   ' })).toThrow(TypeError);
-      expect(() => new ModDexClient(undefined as unknown as { token: string })).toThrow(TypeError);
     });
   });
 
   describe('errors', () => {
     it.each([
-      ['token_missing', 'Provide a token in the Authorization header.'],
-      ['token_invalid', 'Create a new token under Settings > API Tokens.'],
-      ['token_expired', 'Tokens expire after 90 days. Create a new one.'],
+      ['unauthenticated', 'Create a new token and update the Authorization header.'],
+      ['token_expired', 'Create a new token and update the Authorization header.'],
     ])('throws ModDexAuthenticationError with code %s on 401', async (code, hint) => {
-      const { client } = createTestClient([errorResponse(401, { message: 'Unauthenticated.', error: code, hint })]);
+      const { client } = createTestClient([errorResponse(401, { message: 'Unauthenticated.', code, hint })]);
+      const err = await catchError(client.projects.get(1));
+      expect(err).toBeInstanceOf(ModDexAuthenticationError);
+      expect((err as ModDexAuthenticationError).code).toBe(code);
+      expect((err as ModDexAuthenticationError).hint).toBe(hint);
+    });
+
+    it('reads the v1 error field that user.get() still answers with', async () => {
+      const { client } = createTestClient([
+        errorResponse(401, { message: 'API token is missing.', error: 'token_missing', hint: 'Include a token.' }),
+      ]);
       const err = await catchError(client.user.get());
       expect(err).toBeInstanceOf(ModDexAuthenticationError);
       expect(err).toBeInstanceOf(ModDexError);
       const authError = err as ModDexAuthenticationError;
       expect(authError.status).toBe(401);
-      expect(authError.message).toBe('Unauthenticated.');
-      expect(authError.code).toBe(code);
-      expect(authError.hint).toBe(hint);
+      expect(authError.message).toBe('API token is missing.');
+      expect(authError.code).toBe('token_missing');
+      expect(authError.hint).toBe('Include a token.');
       expect(authError.name).toBe('ModDexAuthenticationError');
     });
 
@@ -96,11 +118,13 @@ describe('ModDexClientCore', () => {
     });
 
     it('throws ModDexNotFoundError on 404', async () => {
-      const { client } = createTestClient([errorResponse(404, { message: 'Not Found' })]);
-      const err = await catchError(client.mods.get('does-not-exist'));
+      const body = { message: 'No ModDex project matches.', code: 'not_found' };
+      const { client } = createTestClient([errorResponse(404, body)]);
+      const err = await catchError(client.lookup.get('moddex', 'does-not-exist'));
       expect(err).toBeInstanceOf(ModDexNotFoundError);
       expect((err as ModDexNotFoundError).status).toBe(404);
-      expect((err as ModDexNotFoundError).body).toEqual({ message: 'Not Found' });
+      expect((err as ModDexNotFoundError).code).toBe('not_found');
+      expect((err as ModDexNotFoundError).body).toEqual(body);
     });
 
     it('throws ModDexValidationError with the errors object on 422', async () => {
@@ -111,6 +135,13 @@ describe('ModDexClientCore', () => {
       const err = await catchError(client.projects.list({ per_page: 500 }));
       expect(err).toBeInstanceOf(ModDexValidationError);
       expect((err as ModDexValidationError).errors).toEqual(errors);
+    });
+
+    it.each(['page_depth_exceeded', 'invalid_cursor'])('throws ModDexValidationError for %s', async (code) => {
+      const { client } = createTestClient([errorResponse(422, { message: 'Invalid.', code })]);
+      const err = (await catchError(client.projects.list())) as ModDexValidationError;
+      expect(err).toBeInstanceOf(ModDexValidationError);
+      expect(err.code).toBe(code);
     });
 
     it('defaults validation errors to an empty object', async () => {
@@ -133,6 +164,20 @@ describe('ModDexClientCore', () => {
       const { client } = createTestClient([errorResponse(429, { message: 'Too Many Attempts.' })]);
       const err = (await catchError(client.projects.list())) as ModDexRateLimitError;
       expect(err.retryAfter).toBeNull();
+    });
+
+    it('throws ModDexServiceUnavailableError with retryAfter and hint on 503', async () => {
+      const { client } = createTestClient([
+        errorResponse(
+          503,
+          { message: 'Service temporarily unavailable.', code: 'service_unavailable', hint: 'Search is down.' },
+          { 'Retry-After': '30' },
+        ),
+      ]);
+      const err = (await catchError(client.projects.list({ q: 'sodium' }))) as ModDexServiceUnavailableError;
+      expect(err).toBeInstanceOf(ModDexServiceUnavailableError);
+      expect(err.retryAfter).toBe(30);
+      expect(err.hint).toBe('Search is down.');
     });
 
     it('throws a plain ModDexError for other statuses and non-JSON bodies', async () => {
@@ -220,6 +265,33 @@ describe('ModDexClientCore', () => {
     });
   });
 
+  describe('rate limit', () => {
+    it('is null before any request', () => {
+      const { client } = createTestClient();
+      expect(client.rateLimit).toBeNull();
+    });
+
+    it('exposes the X-RateLimit-* headers of the latest response', async () => {
+      const { client } = createTestClient([
+        jsonResponse({ data: [] }, 200, {
+          'X-RateLimit-Limit': '60',
+          'X-RateLimit-Remaining': '59',
+          'X-RateLimit-Reset': '1792453389',
+        }),
+      ]);
+      await client.catalog.listLoaders();
+      expect(client.rateLimit).toEqual({ limit: 60, remaining: 59, resetAt: new Date(1792453389 * 1000) });
+    });
+
+    it('updates from error responses too', async () => {
+      const { client } = createTestClient([
+        errorResponse(429, { code: 'rate_limited' }, { 'X-RateLimit-Limit': '60', 'X-RateLimit-Remaining': '0' }),
+      ]);
+      await catchError(client.catalog.listLoaders());
+      expect(client.rateLimit).toEqual({ limit: 60, remaining: 0, resetAt: null });
+    });
+  });
+
   describe('cache', () => {
     afterEach(() => {
       vi.useRealTimers();
@@ -248,9 +320,9 @@ describe('ModDexClientCore', () => {
         [jsonResponse(paginated([MOCK_TAG])), jsonResponse(paginated([MOCK_TAG]))],
         { cache: true },
       );
-      await client.tags.list({ type: 'genre' });
-      await client.tags.list({ type: 'theme' });
-      await client.tags.list({ type: 'genre' });
+      await client.catalog.listTags({ type: 'genre' });
+      await client.catalog.listTags({ type: 'theme' });
+      await client.catalog.listTags({ type: 'genre' });
       expect(mockFetch.callCount()).toBe(2);
     });
 

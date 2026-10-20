@@ -19,12 +19,14 @@ hero:
       link: https://www.npmjs.com/package/moddex-js
 
 features:
-  - title: Full API coverage
-    details: Covers projects, mods, modpacks, reviews, tags, and the authenticated user.
+  - title: Full API v2 coverage
+    details: Covers lookup, projects, files, dependencies, reviews, the catalog vocabulary, and the sync feeds.
+  - title: No token needed
+    details: The ModDex API is public. A token only raises your rate limits.
   - title: Typed errors
-    details: Separate error classes for authentication, not found, validation, and rate limits, each with the details you need to react.
+    details: Separate error classes for not found, ambiguous lookups, conflicts, validation, and rate limits, each with the stable error code.
   - title: Pagination built in
-    details: Iterate every page with a for await loop that waits out rate limits for you.
+    details: Iterate every page or follow a sync cursor with a for await loop that waits out rate limits for you.
   - title: Runs anywhere
     details: Works in Node, browsers, and extension service workers using the global fetch, or one you pass in.
 ---
