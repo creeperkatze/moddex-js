@@ -2,10 +2,10 @@ name: Test
 
 on:
     push:
-        branches: [main]
+        branches: [main, "[0-9]*.x"]
         tags-ignore: ["**"]
     pull_request:
-        branches: [main]
+        branches: [main, "[0-9]*.x"]
     workflow_call:
         inputs:
             ref:
