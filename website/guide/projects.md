@@ -56,7 +56,7 @@ Heavy blocks are left out unless you ask for them:
 | `counts` | `counts.followers`, `counts.stacks`, `counts.library_entries` |
 | `completion` | `avg_completion_hours`, for modpacks |
 
-Only `*_html` fields are HTML. See [Showing ModDex Content](/guide/limitations).
+Only fields named `*_html` are HTML, sanitized by ModDex. Everything else is plain text.
 
 ## Files
 

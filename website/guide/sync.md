@@ -38,14 +38,11 @@ for await (const page of client.sync.iterateReviewPages({ since: startedAt })) {
 }
 ```
 
-A review reaches the feed 5 minutes after it changes. This is the reliable way to post every new review, because a review held for moderation keeps its writing date when approved.
+A review reaches the feed 5 minutes after it changes.
 
-## Removing content
+## Removed reviews
 
-ModDex's terms require removing content within 7 days of its removal from ModDex. The reviews feed has no tombstones, because a review can disappear without leaving a trace, so:
-
-- delete a project and its reviews when the projects feed sends its tombstone
-- at least daily, check the reviews you hold against `listReviewIds` and delete every one it doesn't list
+The reviews feed has no tombstones. To find reviews that were removed, compare the ones you hold against `listReviewIds`, which lists every public review:
 
 ```ts
 const live = new Set(await client.sync.listReviewIds());

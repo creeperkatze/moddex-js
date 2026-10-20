@@ -11,7 +11,7 @@ ModDex lists projects from CurseForge and Modrinth, often both under one page. L
 | `modrinth_id` | `AANobbMI` (8 characters, case-sensitive) |
 | `modrinth_slug` | `sodium` |
 
-Lookup resolves every project with a page on ModDex, including delisted ones (`available: false`). Nothing matching throws `ModDexNotFoundError`, which ModDex caches for 60 seconds.
+Lookup resolves every project with a page on ModDex, including delisted ones (`available: false`). Nothing matching throws `ModDexNotFoundError`.
 
 ## By platform and value
 
@@ -41,7 +41,7 @@ Modrinth slugs are unique, and links carry their type, so neither is ever ambigu
 
 ## Reviews in one request
 
-`listReviews` returns a project's reviews with the project summary in `meta.project`. That's the rating, the links and the newest reviews in one request, which suits a browser extension:
+`listReviews` returns a project's reviews with the project summary in `meta.project`, so the rating, the links and the reviews come in one request:
 
 ```ts
 const { data: reviews, meta } = await client.lookup.listReviews('modrinth', 'sodium', { per_page: 5 });
@@ -54,7 +54,7 @@ It takes the same options as [`projects.listReviews`](/guide/reviews).
 
 ## By link or several keys
 
-`find` takes a pasted ModDex, CurseForge or Modrinth link, with or without the scheme, `www.`, a trailing slash, query string or fragment. Sub-pages such as `/files` or `/versions` resolve to their project, so the current tab's URL works as it is:
+`find` takes a ModDex, CurseForge or Modrinth link, with or without the scheme, `www.`, a trailing slash, query string or fragment. Sub-pages such as `/files` or `/versions` resolve to their project:
 
 ```ts
 const { data } = await client.lookup.find({ url: 'https://modrinth.com/mod/sodium/versions' });
@@ -72,15 +72,15 @@ matched.modrinth_id?.hit; // true
 `batch` looks up to 100 values up in one request, which counts as one request against your rate limit. A bad value doesn't fail the rest. Each maps to a project summary, `{ ambiguous: true, candidates }`, or `null`:
 
 ```ts
-const links = [...document.querySelectorAll<HTMLAnchorElement>('a.project-card')].map((a) => a.href).sort();
-const { urls } = await client.lookup.batch({ urls: links });
+const { modrinth, urls } = await client.lookup.batch({
+  modrinth: ['AANobbMI', 'lithium'],
+  urls: ['https://www.curseforge.com/minecraft/modpacks/rlcraft'],
+});
 
-for (const [url, project] of Object.entries(urls)) {
-  if (project && !('ambiguous' in project)) renderBadge(url, project.rating);
+for (const [value, project] of Object.entries(modrinth)) {
+  if (project && !('ambiguous' in project)) console.log(value, project.rating.average);
 }
 ```
-
-Sort the values so the same page hits the same cache entry.
 
 ## Files
 

@@ -22,11 +22,11 @@ bun add moddex-js
 
 :::
 
-moddex-js 2.x talks to the ModDex API v2. If you are coming from 1.x, see [Migrating from 1.x](/guide/migrating).
+If you are coming from 1.x, see [Migrating from 1.x](/guide/migrating).
 
 ## Create a client
 
-The ModDex API is public, so you don't need an account or a token. Identify your app with `client`, which is sent as the `X-Client` header. ModDex uses it to tell your traffic apart and to get in touch before blocking anything.
+The ModDex API is public, so you don't need a token. Identify your app with `client`, which is sent as the `X-Client` header.
 
 ```ts
 import ModDexClient from 'moddex-js';
@@ -67,5 +67,4 @@ const client = new ModDexClient({
 - [Lookup](/guide/lookup) finds projects from CurseForge and Modrinth IDs, slugs, links and files
 - [Pagination & Rate Limits](/guide/pagination) shows how to walk every page
 - [Error Handling](/guide/error-handling) lists every error class
-- [Showing ModDex Content](/guide/limitations) covers escaping, masking and attribution
 - [API Reference](/api/) has the generated docs for every type

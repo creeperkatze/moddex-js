@@ -127,13 +127,9 @@ export interface BatchLookupResult {
 }
 
 /** Query parameters for `lookup.file`. Pass exactly one of `sha1` or `curseforge_file_id`. */
-export type FileLookupOptions = (
+export type FileLookupOptions =
   | { /** A Modrinth file's SHA1, 40 hex characters, any case. */ sha1: string; curseforge_file_id?: never }
-  | { sha1?: never; /** A CurseForge file ID. */ curseforge_file_id: number | string }
-) & {
-  /** Adds the release's changelog. */
-  include?: readonly 'changelog'[];
-};
+  | { sha1?: never; /** A CurseForge file ID. */ curseforge_file_id: number | string };
 
 /** A file mapped to its project. */
 export interface FileMatch {

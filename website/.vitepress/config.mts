@@ -8,7 +8,6 @@ export default defineDocsConfig({
   version,
   guide: [
     { text: "Getting Started", link: "/guide/getting-started" },
-    { text: "Migrating from 1.x", link: "/guide/migrating" },
     { text: "Authentication", link: "/guide/authentication" },
     { text: "Error Handling", link: "/guide/error-handling" },
     { text: "Pagination & Rate Limits", link: "/guide/pagination" },
@@ -20,7 +19,10 @@ export default defineDocsConfig({
     { text: "Catalog", link: "/guide/catalog" },
     { text: "Sync Feeds", link: "/guide/sync" },
     { text: "User", link: "/guide/user" },
-    { text: "Showing ModDex Content", link: "/guide/limitations" },
+    {
+      text: "Migrating",
+      items: [{ text: "From 1.x", link: "/guide/migrating" }],
+    },
   ],
   api: new URL("../api", import.meta.url),
 });

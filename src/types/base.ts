@@ -109,8 +109,7 @@ export interface RateLimit {
 export interface ModDexClientOptions {
   /**
    * Optional personal API token, created under **Settings > API Tokens** on moddex.gg.
-   * Every v2 endpoint is public: a token only raises your rate limits. Anyone who can inspect your code can
-   * read the token, so keep it on a server rather than in a browser extension or web page.
+   * Every v2 endpoint is public: a token only raises your rate limits. Tokens expire after 90 days.
    */
   token?: string;
   /**

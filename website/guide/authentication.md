@@ -19,9 +19,6 @@ const client = new ModDexClient({ client: 'my-bot/1.0.0', token: process.env.MOD
 
 The constructor throws a `TypeError` for an empty token. Leave `token` out instead.
 
-> [!WARNING]
-> Anyone who can read your code can read the token. Keep it on a server. Don't put it in a browser extension or a web page: they work without one.
-
 ## Token expiry
 
 Tokens expire 90 days after they are created. Responses to requests with a token include an `X-ModDex-Token-Expires` header, which the client exposes as `client.tokenExpiry`:
